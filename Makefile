@@ -6,9 +6,10 @@ BIN_DIR ?= "build/_output/bin"
 IMPORT_LOG=import.log
 FMT_LOG=fmt.log
 
+ARCHS = amd64 arm64
 OPERATOR_NAME ?= jaeger-operator
 NAMESPACE ?= "$(USER)"
-BUILD_IMAGE ?= "$(NAMESPACE)/$(OPERATOR_NAME):latest"
+BUILD_IMAGE ?= "$(NAMESPACE)/$(OPERATOR_NAME)"
 OUTPUT_BINARY ?= "$(BIN_DIR)/$(OPERATOR_NAME)"
 VERSION_PKG ?= "github.com/jaegertracing/jaeger-operator/pkg/version"
 JAEGER_VERSION ?= "$(shell grep jaeger= versions.txt | awk -F= '{print $$2}')"
@@ -66,9 +67,43 @@ build: format
 	@echo Building...
 	@${GO_FLAGS} go build -o $(OUTPUT_BINARY) -ldflags $(LD_FLAGS)
 
+.PHONY: docker-multiarch
+docker-multiarch: docker-build docker-push docker-manifest
+
+docker-build: $(addprefix docker-build-, ${ARCHS})
+docker-build-%:
+	@[ ! -z "$(PIPELINE)" ] || docker build --file build/$*.Dockerfile -t "$(BUILD_IMAGE)-$*:latest" .
+
+docker-push: $(addprefix docker-push-, ${ARCHS})
+docker-push-%:
+ifeq ($(CI),true)
+	@echo Skipping push, as the build is running within a CI environment
+else
+	@echo "Pushing image $(BUILD_IMAGE)-$*:latest..."
+	@docker push $(BUILD_IMAGE)-$*:latest > /dev/null
+endif
+
+docker-manifest:
+ifeq ($(CI),true)
+	@echo Skipping manifest creation, as the build is running within a CI environment
+else
+	@echo "Creating manifest $(BUILD_IMAGE)-$*:latest..."
+	docker manifest create $(BUILD_IMAGE)/$(BUILD_IMAGE):latest \
+	$(shell for ARCH in $(ARCHS); do \
+			echo $(BUILD_IMAGE)-$$ARCH:latest; \
+		done)
+
+	make docker-manifest-annotate
+	docker manifest push --insecure --purge $(BUILD_IMAGE):latest
+endif
+
+docker-manifest-annotate: $(addprefix docker-manifest-annotate-, ${ARCHS})
+docker-manifest-annotate-%:
+	docker manifest annotate $(BUILD_IMAGE):latest $(BUILD_IMAGE)/-$*:latest --arch $*
+
 .PHONY: docker
 docker:
-	@[ ! -z "$(PIPELINE)" ] || docker build --file build/Dockerfile -t "$(BUILD_IMAGE)" .
+	@[ ! -z "$(PIPELINE)" ] || docker build --file build/amd64.Dockerfile -t "$(BUILD_IMAGE)" .
 
 .PHONY: push
 push:
