@@ -16,7 +16,7 @@ RUN INSTALL_PKGS=" \
 COPY scripts/* /scripts/
 
 # install operator binary
-COPY build/_output/bin/jaeger-operator ${OPERATOR}
+COPY build/_output/bin/jaeger-operator-amd64 ${OPERATOR}
 
 ENTRYPOINT ["/usr/local/bin/jaeger-operator"]
 

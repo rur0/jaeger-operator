@@ -14,7 +14,7 @@ WORKDIR /tmp/_working_dir
 
 COPY . .
 
-RUN GOARCH=arm64 GOOS=linux CC=aarch64-linux-gnu-gcc make build
+RUN ARCH=arm64 GOOS=linux CC=aarch64-linux-gnu-gcc make build
 
 FROM arm64v8/alpine:latest
 
@@ -24,7 +24,7 @@ ENV OPERATOR=/usr/local/bin/jaeger-operator \
 
 COPY --from=builder /tmp/_working_dir/scripts/* /scripts/
 # install operator binary
-COPY --from=builder /tmp/_working_dir/build/_output/bin/jaeger-operator ${OPERATOR}
+COPY --from=builder /tmp/_working_dir/build/_output/bin/jaeger-operator-arm64 ${OPERATOR}
 
 ENTRYPOINT ["/usr/local/bin/jaeger-operator"]
 
